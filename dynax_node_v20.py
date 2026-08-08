@@ -4,9 +4,6 @@ import threading
 import json
 import hashlib
 import os
-if os.path.exists("dynax_chain.json"):
-    os.remove("dynax_chain.json")
-    print("RESET: removed old dynax_chain.json, will create fresh genesis")
     
 from flask import Flask, jsonify, request
 from flask_cors import CORS 
@@ -538,17 +535,43 @@ def receive_block():
 @app.route("/sync")
 def sync_chain():
     longest = node.chain
-    for peer in node.peers:
+
+    for peer in list(node.peers):
         try:
-            r = requests.get(f"{peer}/chain", timeout=3)
+            print(f"[SYNC] Checking peer: {peer}")
+
+            r = requests.get(
+                f"{peer}/chain",
+                timeout=(10, 90)
+            )
+            r.raise_for_status()
+
             peer_chain = r.json()
+
+            print(
+                f"[SYNC] Peer {peer}: "
+                f"{len(peer_chain)} blocks"
+            )
+
             if len(peer_chain) > len(longest):
                 longest = peer_chain
-        except:
-            pass
+
+        except Exception as e:
+            print(
+                f"[SYNC] Peer {peer} failed: "
+                f"{type(e).__name__}: {e}"
+            )
+
     if reorg_chain(longest):
-        return jsonify({"status": "synced", "blocks": len(node.chain)})
-    return jsonify({"status": "already longest", "blocks": len(node.chain)})
+        return jsonify({
+            "status": "synced",
+            "blocks": len(node.chain)
+        })
+
+    return jsonify({
+        "status": "already longest",
+        "blocks": len(node.chain)
+    })
 
 
 @app.route("/assets/<path:filename>")
@@ -1591,11 +1614,16 @@ def broadcast_block_signed(block):
 
 
 # Auto-mining thread
-MINER_ADDRESS = "dynax1qauto_miner"
+MINER_ADDRESS = os.environ.get("MINER_ADDRESS", "")
+if not MINER_ADDRESS:
+    print("[AUTO-MINE] WARNING: MINER_ADDRESS not set, auto-mine will not start. Set MINER_ADDRESS env var to your own address.")
 
 def auto_mine_loop():
     """ขุด block เฉพาะเมื่อมี pending transactions"""
     import time
+    if not MINER_ADDRESS:
+        print("[AUTO-MINE] Disabled: no MINER_ADDRESS set.", flush=True)
+        return
     print("[AUTO-MINE] Smart mining thread started!", flush=True)
     time.sleep(30)
     
@@ -1629,7 +1657,8 @@ def auto_mine_loop():
 threading.Thread(target=resilient_loop, args=(auto_mine_loop, "auto_mine_loop"), daemon=True).start()
 print("[AUTO-MINE] Background mining started")
 
-app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 6001)), debug=False, use_reloader=False) 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 6001)), debug=False, use_reloader=False) 
 
 
 
