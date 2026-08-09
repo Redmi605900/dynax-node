@@ -1,7 +1,6 @@
 import os
 if os.path.exists("dynax_chain.json"):
-    os.remove("dynax_chain.json")
-    print("RESET: removed old dynax_chain.json, will create fresh genesis")
+    print("Existing chain found - keeping current chain")
 
 from dynax_node_v20 import app
 import threading
