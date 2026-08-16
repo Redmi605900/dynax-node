@@ -1,6 +1,24 @@
 import time
 import requests
 import threading
+
+# ===== Tor .onion peer support =====
+_TOR_PROXIES = {
+    'http': 'socks5h://127.0.0.1:9050',
+    'https': 'socks5h://127.0.0.1:9050'
+}
+
+def peer_request(method, url, **kwargs):
+    """
+    Wrapper รอบ requests ที่รองรับทั้ง peer ปกติและ .onion peer
+    .onion peer จะถูกส่งผ่าน Tor SOCKS proxy อัตโนมัติ
+    peer ปกติทำงานเหมือนเดิมทุกประการ ไม่กระทบ
+    """
+    if '.onion' in url:
+        kwargs.setdefault('proxies', _TOR_PROXIES)
+        kwargs.setdefault('timeout', 60)
+    return getattr(requests, method)(url, **kwargs)
+
 import json
 import hashlib
 import os
@@ -154,7 +172,7 @@ class DynaxNode:
         # Broadcast new block to all peers
         for peer in list(self.peers):
             try:
-                r = requests.post(f"{peer}/receive_block", json=block, timeout=3)
+                r = peer_request("post", f"{peer}/receive_block", json=block, timeout=3)
                 print(f"Broadcasted block {block['index']} to {peer}: {r.status_code}")
             except Exception as e:
                 print(f"Failed to broadcast to {peer}: {e}")
@@ -540,7 +558,8 @@ def sync_chain():
         try:
             print(f"[SYNC] Checking peer: {peer}")
 
-            r = requests.get(
+            r = peer_request(
+                "get",
                 f"{peer}/chain",
                 timeout=(10, 90)
             )
@@ -611,6 +630,7 @@ def auto_connect_bootstrap():
     static_peers = [
         "https://dynax-node.onrender.com",
         "https://dynax-node2.onrender.com",
+        "http://wjk6bqzdt6tto52jaacmkdtohjaf3s3re3zv4bjfmtjy67t24amwsyid.onion",
     ]
     for p in static_peers:
         node.peers.add(p)
@@ -621,7 +641,7 @@ def auto_connect_bootstrap():
     if bootstrap:
         try:
             import requests
-            requests.post(f"{bootstrap}/peers/add", json={"peer": os.environ.get("MY_URL", "")}, timeout=5)
+            peer_request("post", f"{bootstrap}/peers/add", json={"peer": os.environ.get("MY_URL", "")}, timeout=5)
             node.peers.add(bootstrap)
             print(f"Connected to bootstrap: {bootstrap}")
         except Exception as e:
@@ -1422,9 +1442,9 @@ def initial_snapshot_sync():
     import time
     time.sleep(5)
     static_peers = [
-        "https://web-production-8bbb8.up.railway.app",
         "https://dynax-node2.onrender.com",
-        "https://dynax-node.onrender.com"
+        "https://dynax-node.onrender.com",
+        "http://wjk6bqzdt6tto52jaacmkdtohjaf3s3re3zv4bjfmtjy67t24amwsyid.onion",
     ]
     for peer in static_peers:
         try:
@@ -1664,7 +1684,7 @@ if __name__ == "__main__":
 
 def download_snapshot(peer):
     try:
-        r = requests.get(f"{peer}/snapshot", timeout=20)
+        r = peer_request("get", f"{peer}/snapshot", timeout=20)
         data = r.json()
 
         if data["height"] > len(node.chain):
