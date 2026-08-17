@@ -2,3 +2,4 @@ flask
 ecdsa
 requests
 flask-cors
+pysocks
