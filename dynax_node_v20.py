@@ -674,7 +674,7 @@ POOL_FILE = "liquidity_pool.json"
 
 def load_pool():
     """คำนวณ pool state จาก chain"""
-    pool = {"DYX": 100000, "USDT": 50000}
+    pool = {"DYX": 100000, "TEST": 50000}
     for block in node.chain:
         for tx in block.get("transactions", []):
             if tx.get("type") == "dex_swap":
@@ -696,10 +696,10 @@ liquidity_pool = load_pool()
 
 @app.route("/dex/pool")
 def dex_pool():
-    price = liquidity_pool["USDT"] / liquidity_pool["DYX"]
+    price = liquidity_pool["TEST"] / liquidity_pool["DYX"]
     return jsonify({
         "DYX": liquidity_pool["DYX"],
-        "USDT": liquidity_pool["USDT"],
+        "TEST": liquidity_pool["TEST"],
         "price_dyx_usdt": round(price, 6)
     })
 
@@ -1505,7 +1505,7 @@ def reconstruct_state():
     """คำนวณ state ทั้งหมดจาก chain ล้วนๆ"""
     state = {
         "balances": {},
-        "dex_pool": {"DYX": 100000, "USDT": 50000},
+        "dex_pool": {"DYX": 100000, "TEST": 50000},
         "total_supply": 0,
         "tx_count": 0,
         "nonces": {}
